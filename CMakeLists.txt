@@ -481,6 +481,13 @@ IF(EXAMPLES)
             LIBRARY DESTINATION ${LIB_INSTALL_DIR}
             ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
     )
+    ADD_EXECUTABLE(openal-mctest examples/openal-mctest.c)
+    TARGET_LINK_LIBRARIES(openal-mctest ${LIBNAME})
+    INSTALL(TARGETS openal-mctest
+            RUNTIME DESTINATION bin
+            LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+            ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+    )
 ENDIF()
 
 MESSAGE(STATUS "")
