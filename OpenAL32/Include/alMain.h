@@ -224,6 +224,9 @@ void alc_wave_probe(int type);
 void alc_pulse_init(BackendFuncs *func_list);
 void alc_pulse_deinit(void);
 void alc_pulse_probe(int type);
+void alc_ca_init(BackendFuncs *func_list);
+void alc_ca_deinit(void);
+void alc_ca_probe(int type);
 
 
 struct ALCdevice_struct

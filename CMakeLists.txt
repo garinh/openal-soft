@@ -31,6 +31,7 @@ OPTION(DSOUND  "Check for DirectSound backend"         ON)
 OPTION(WINMM   "Check for Windows Multimedia backend"  ON)
 OPTION(PORTAUDIO  "Check for PortAudio backend"        ON)
 OPTION(PULSEAUDIO "Check for PulseAudio backend"       ON)
+OPTION(COREAUDIO  "Check for CoreAudio backend"        ON)
 
 OPTION(DLOPEN  "Check for the dlopen API for loading optional libs"  ON)
 
@@ -398,7 +399,7 @@ IF(PORTAUDIO)
     ENDIF()
 ENDIF()
 
-# Check PortAudio backend
+# Check PulseAudio backend
 IF(PULSEAUDIO)
     CHECK_INCLUDE_FILE(pulse/pulseaudio.h HAVE_PULSE_PULSEAUDIO_H)
     IF(HAVE_PULSE_PULSEAUDIO_H)
@@ -413,6 +414,16 @@ IF(PULSEAUDIO)
                 SET(EXTRA_LIBS pulse ${EXTRA_LIBS})
             ENDIF()
         ENDIF()
+    ENDIF()
+ENDIF()
+
+# Check CoreAudio backend
+IF(COREAUDIO)
+    CHECK_INCLUDE_FILE(/System/Library/Frameworks/CoreAudio.framework/Headers/CoreAudio.h HAVE_COREAUDIO_H)
+    IF(HAVE_COREAUDIO_H)
+        SET(HAVE_COREAUDIO 1)
+        SET(ALC_OBJS  ${ALC_OBJS} Alc/coreaudio.c)
+        SET(BACKENDS  "${BACKENDS} CoreAudio,")
     ENDIF()
 ENDIF()
 

@@ -69,6 +69,9 @@ static BackendInfo BackendList[] = {
 #ifdef HAVE_PORTAUDIO
     { "port", alc_pa_init, alc_pa_deinit, alc_pa_probe, EmptyFuncs },
 #endif
+#ifdef HAVE_COREAUDIO
+    { "coreaudio", alc_ca_init, alc_ca_deinit, alc_ca_probe, EmptyFuncs },
+#endif
 
     { "wave", alc_wave_init, alc_wave_deinit, alc_wave_probe, EmptyFuncs },
 
