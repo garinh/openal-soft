@@ -30,11 +30,15 @@
 #include <dlfcn.h>
 #endif
 
+#include <CoreServices/CoreServices.h>
+#include <unistd.h>
+#include <AudioUnit/AudioUnit.h>
+
 static void *ca_handle;
+AudioUnit gOutputUnit;
 
 static const ALCchar ca_device[] = "CoreAudio Software";
 static volatile ALuint load_count = 0;
-
 
 void *ca_load(void)
 {
@@ -55,19 +59,24 @@ void ca_unload(void)
     ca_handle = NULL;
 }
 
-static int ca_callback(const void *inputBuffer, void *outputBuffer,
-                       unsigned long framesPerBuffer, void *userData)
+static int ca_callback(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp,
+                       UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData)
 {
-    ALCdevice *device = (ALCdevice*)userData;
+    ALCdevice *device = (ALCdevice*)inRefCon;
 
-    aluMixData(device, outputBuffer, framesPerBuffer);
+    //aluMixData(device, outputBuffer, framesPerBuffer);
     return 0;
 }
 
-
 static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
 {
-  printf("***** GH ***** Initializing CoreAudio -- ca_open_playback.\n");
+    OSStatus err = noErr;
+    ComponentDescription desc;
+    Component comp;
+    AURenderCallbackStruct input;
+
+    printf("***** GH ***** Initializing CoreAudio -- ca_open_playback.\n");
+
     if(!deviceName)
         deviceName = ca_device;
     else if(strcmp(deviceName, ca_device) != 0)
@@ -76,12 +85,42 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
     if(!ca_load())
         return ALC_FALSE;
 
+    err = noErr;
+
+    // open the default output unit
+    desc.componentType = kAudioUnitType_Output;
+    desc.componentSubType = kAudioUnitSubType_DefaultOutput;
+    desc.componentManufacturer = kAudioUnitManufacturer_Apple;
+    desc.componentFlags = 0;
+    desc.componentFlagsMask = 0;
+
+    comp = FindNextComponent(NULL, &desc);
+    if (comp == NULL) {
+        return ALC_FALSE;
+    }
+
+    err = OpenAComponent(comp, &gOutputUnit);
+    if (comp == NULL) {
+        return ALC_FALSE;
+    }
+
+    // setup callback
+    input.inputProc = ca_callback;
+    input.inputProcRefCon = NULL;
+
+    err = AudioUnitSetProperty (gOutputUnit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &input, sizeof(input));
+    if (err) {
+      return ALC_FALSE;
+    }
+
+    printf("***** GH ***** ca_open_playback complete\n");
     return ALC_TRUE;
 }
 
 static void ca_close_playback(ALCdevice *device)
 {
-printf("***** GH ***** Killing CoreAudio -- ca_close_playback.\n");
+    printf("***** GH ***** Killing CoreAudio -- ca_close_playback.\n");
+    CloseComponent(gOutputUnit);
 }
 
 static ALCboolean ca_reset_playback(ALCdevice *device)
@@ -93,15 +132,12 @@ static void ca_stop_playback(ALCdevice *device)
 {
 }
 
-
 static ALCboolean ca_open_capture(ALCdevice *device, const ALCchar *deviceName)
 {
     return ALC_FALSE;
     (void)device;
     (void)deviceName;
 }
-
-
 
 static const BackendFuncs ca_funcs = {
     ca_open_playback,

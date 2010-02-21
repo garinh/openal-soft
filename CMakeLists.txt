@@ -419,11 +419,14 @@ ENDIF()
 
 # Check CoreAudio backend
 IF(COREAUDIO)
-    CHECK_INCLUDE_FILE(/System/Library/Frameworks/CoreAudio.framework/Headers/CoreAudio.h HAVE_COREAUDIO_H)
-    IF(HAVE_COREAUDIO_H)
+    CHECK_INCLUDE_FILE(/System/Library/Frameworks/CoreAudio.framework/Headers/CoreAudio.h HAVE_COREAUDIO_FRAMEWORK)
+    IF(HAVE_COREAUDIO_FRAMEWORK)
         SET(HAVE_COREAUDIO 1)
         SET(ALC_OBJS  ${ALC_OBJS} Alc/coreaudio.c)
         SET(BACKENDS  "${BACKENDS} CoreAudio,")
+        SET(EXTRA_LIBS /System/Library/Frameworks/CoreAudio.framework ${EXTRA_LIBS})
+        SET(EXTRA_LIBS /System/Library/Frameworks/AudioUnit.framework ${EXTRA_LIBS})
+        SET(EXTRA_LIBS /System/Library/Frameworks/ApplicationServices.framework ${EXTRA_LIBS})
     ENDIF()
 ENDIF()
 
