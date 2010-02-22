@@ -329,7 +329,7 @@ int main()
     alGenSources(1, &source);
     checkForErrors();
 
-    alBufferData(buffer, AL_FORMAT_51CHN16, memBuffer, readMem, 44100);
+    alBufferData(buffer, AL_FORMAT_MONO16, memBuffer, readMem, 44100);
     checkForErrors();
 
     alSourcei(source, AL_BUFFER, buffer);

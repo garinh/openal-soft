@@ -62,10 +62,27 @@ void ca_unload(void)
 static int ca_callback(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp,
                        UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData)
 {
-    ALCdevice *device = (ALCdevice*)inRefCon;
+  static UInt32 channelCount = 0; // ***** GH
+  static UInt32 firstDataByteSize = 0;
 
-    //aluMixData(device, outputBuffer, framesPerBuffer);
-    return 0;
+    UInt32 channel;
+    ALCdevice *device = (ALCdevice*)inRefCon;
+    
+    // ***** GH
+    if (channelCount == 0)
+      {
+	channelCount = ioData->mNumberBuffers;
+	firstDataByteSize = ioData->mBuffers[0].mDataByteSize;
+	printf("***** GH ***** ca_callback channels = %d, dbs = %d\n", channelCount, firstDataByteSize);
+      }
+
+    /*for (channel = 0; channel < ioData->mNumberBuffers; channel++)
+    {
+      memset(ioData->mBuffers[channel].mData, 0, ioData->mBuffers[channel].mDataByteSize);
+    }*/
+    
+    aluMixData(device, ioData->mBuffers[0].mData, ioData->mBuffers[0].mDataByteSize / 4);
+    return noErr;
 }
 
 static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
@@ -74,6 +91,9 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
     ComponentDescription desc;
     Component comp;
     AURenderCallbackStruct input;
+    AudioStreamBasicDescription streamFormat;
+    Float64 outSampleRate;
+    UInt32 size;
 
     printf("***** GH ***** Initializing CoreAudio -- ca_open_playback.\n");
 
@@ -106,12 +126,63 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
 
     // setup callback
     input.inputProc = ca_callback;
-    input.inputProcRefCon = NULL;
+    input.inputProcRefCon = device;
 
     err = AudioUnitSetProperty (gOutputUnit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &input, sizeof(input));
     if (err) {
       return ALC_FALSE;
     }
+	
+	printf("***** GH ***** device->Format = %d\n", device->Format);
+	
+	streamFormat.mFramesPerPacket = 1;
+	streamFormat.mChannelsPerFrame = aluChannelsFromFormat(device->Format);
+	switch(aluBytesFromFormat(device->Format))
+    {
+        case 2:
+            streamFormat.mBitsPerChannel = 16;
+			streamFormat.mBytesPerPacket = 2 * streamFormat.mChannelsPerFrame;
+			streamFormat.mBytesPerFrame = 2 * streamFormat.mChannelsPerFrame;
+            break;
+        case 4:
+            streamFormat.mBitsPerChannel = 32;
+			streamFormat.mBytesPerPacket = 4 * streamFormat.mChannelsPerFrame;
+			streamFormat.mBytesPerFrame = 4 * streamFormat.mChannelsPerFrame;		
+            break;
+        default:
+            AL_PRINT("Unknown format: 0x%x\n", device->Format);
+            return ALC_FALSE;
+    }
+    streamFormat.mSampleRate = (float)device->Frequency;
+    streamFormat.mFormatID = kAudioFormatLinearPCM;
+    streamFormat.mFormatFlags = kLinearPCMFormatFlagIsSignedInteger |
+                                kAudioFormatFlagsNativeEndian |
+                                kLinearPCMFormatFlagIsPacked;
+								
+	SetDefaultChannelOrder(device);
+
+    err = AudioUnitSetProperty(gOutputUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &streamFormat, sizeof(AudioStreamBasicDescription));
+    if (err) {
+        return ALC_FALSE;
+    }
+
+    err = AudioUnitInitialize(gOutputUnit);
+    if (err) {
+        return ALC_FALSE;
+    }
+
+    size = sizeof(Float64);
+    err = AudioUnitGetProperty(gOutputUnit, kAudioUnitProperty_SampleRate, kAudioUnitScope_Output, 0, &outSampleRate, &size);
+    if (err) {
+        return ALC_FALSE;
+    }
+
+    err = AudioOutputUnitStart(gOutputUnit);
+    if (err) {
+        return ALC_FALSE;
+    }
+
+    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 2, false);
 
     printf("***** GH ***** ca_open_playback complete\n");
     return ALC_TRUE;
@@ -130,6 +201,15 @@ static ALCboolean ca_reset_playback(ALCdevice *device)
 
 static void ca_stop_playback(ALCdevice *device)
 {
+    OSStatus err = noErr;
+
+    AudioOutputUnitStop(gOutputUnit);
+    err = AudioUnitUninitialize(gOutputUnit);
+    if (err) {
+        printf("***** GH ***** AudioUnitUninitialize failed.\n");
+    } else {
+	printf("***** GH ***** AudioUnitUninitialize succeeded.\n");
+    }
 }
 
 static ALCboolean ca_open_capture(ALCdevice *device, const ALCchar *deviceName)
