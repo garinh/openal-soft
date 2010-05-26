@@ -139,9 +139,9 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
         return ALC_FALSE;
     }
 	
-	// retrieve default output unit's properties (input side)
+	// retrieve default output unit's properties (output side)
 	size = sizeof(AudioStreamBasicDescription);
-	err = AudioUnitGetProperty (gOutputUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &streamFormat, &size);
+	err = AudioUnitGetProperty (gOutputUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &streamFormat, &size);
 	if (err) {
 #if CA_VERBOSE
       printf("CA: failed AudioUnitGetProperty\n");
@@ -150,14 +150,23 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
     }
 	
 #if CA_VERBOSE
-    printf("CA: Input streamFormat of default output unit -\n");
+    printf("CA: Output streamFormat of default output unit -\n");
 	printf("CA:   streamFormat.mFramesPerPacket = %d\n", streamFormat.mFramesPerPacket);
 	printf("CA:   streamFormat.mChannelsPerFrame = %d\n", streamFormat.mChannelsPerFrame);
 	printf("CA:   streamFormat.mBitsPerChannel = %d\n", streamFormat.mBitsPerChannel);
 	printf("CA:   streamFormat.mBytesPerPacket = %d\n", streamFormat.mBytesPerPacket);
 	printf("CA:   streamFormat.mBytesPerFrame = %d\n", streamFormat.mBytesPerFrame);
 	printf("CA:   streamFormat.mSampleRate = %5.0f\n", streamFormat.mSampleRate);
-#endif	
+#endif
+
+    // set default output unit's input side to match output side
+	err = AudioUnitSetProperty (gOutputUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &streamFormat, size);
+	if (err) {
+#if CA_VERBOSE
+      printf("CA: failed AudioUnitSetProperty\n");
+#endif
+      return ALC_FALSE;
+    }
 
     // setup callback
     input.inputProc = ca_callback;
@@ -172,38 +181,43 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
 	switch (streamFormat.mChannelsPerFrame)
 	{
 		case 1:
-			if (streamFormat.mBitsPerChannel == 8) device->Format = AL_FORMAT_MONO8;
-			if (streamFormat.mBitsPerChannel == 16) device->Format = AL_FORMAT_MONO16;
+			device->Format = AL_FORMAT_MONO16;
 		    break;
 		case 2:
-			if (streamFormat.mBitsPerChannel == 8 * 2) device->Format = AL_FORMAT_STEREO8;
-			if (streamFormat.mBitsPerChannel == 16 * 2) device->Format = AL_FORMAT_STEREO16;
-			if (streamFormat.mBitsPerChannel == 32 * 2) device->Format = AL_FORMAT_STEREO_FLOAT32;
+			device->Format = AL_FORMAT_STEREO16;
 		    break;
 		case 4:
-			if (streamFormat.mBitsPerChannel == 8 * 4) device->Format = AL_FORMAT_QUAD8;
-			if (streamFormat.mBitsPerChannel == 16 * 4) device->Format = AL_FORMAT_QUAD16;
-			if (streamFormat.mBitsPerChannel == 32 * 4) device->Format = AL_FORMAT_QUAD32;
+			device->Format = AL_FORMAT_QUAD16;
 		    break;
 		case 6:
-		    if (streamFormat.mBitsPerChannel == 8 * 6) device->Format = AL_FORMAT_51CHN8;
-			if (streamFormat.mBitsPerChannel == 16 * 6) device->Format = AL_FORMAT_51CHN16;
-			if (streamFormat.mBitsPerChannel == 32 * 6) device->Format = AL_FORMAT_51CHN32;
+		    device->Format = AL_FORMAT_51CHN16;
 		    break;
 		case 7:
-		    if (streamFormat.mBitsPerChannel == 8 * 7) device->Format = AL_FORMAT_61CHN8;
-			if (streamFormat.mBitsPerChannel == 16 * 7) device->Format = AL_FORMAT_61CHN16;
-			if (streamFormat.mBitsPerChannel == 32 * 7) device->Format = AL_FORMAT_61CHN32;
+		    device->Format = AL_FORMAT_61CHN16;
 		    break;
 		case 8:
-			if (streamFormat.mBitsPerChannel == 8 * 8) device->Format = AL_FORMAT_71CHN8;
-			if (streamFormat.mBitsPerChannel == 16 * 8) device->Format = AL_FORMAT_71CHN16;
-			if (streamFormat.mBitsPerChannel == 32 * 8) device->Format = AL_FORMAT_71CHN32;
+			device->Format = AL_FORMAT_71CHN16;
 		    break;
-		default:
-			return ALC_FALSE;
-			break;
 	}
+#if CA_VERBOSE
+    if (device->Format == AL_FORMAT_MONO8) printf("CA: set AL's device->format to AL_FORMAT_MONO8\n");
+	if (device->Format == AL_FORMAT_STEREO8) printf("CA: set AL's device->format to AL_FORMAT_STEREO8\n");
+	if (device->Format == AL_FORMAT_QUAD8) printf("CA: set AL's device->format to AL_FORMAT_QUAD8\n");
+	if (device->Format == AL_FORMAT_51CHN8) printf("CA: set AL's device->format to AL_FORMAT_51CHN8\n");
+	if (device->Format == AL_FORMAT_61CHN8) printf("CA: set AL's device->format to AL_FORMAT_61CHN8\n");
+	if (device->Format == AL_FORMAT_71CHN8) printf("CA: set AL's device->format to AL_FORMAT_71CHN8\n");
+	if (device->Format == AL_FORMAT_MONO16) printf("CA: set AL's device->format to AL_FORMAT_MONO16\n");
+	if (device->Format == AL_FORMAT_STEREO16) printf("CA: set AL's device->format to AL_FORMAT_STEREO16\n");
+	if (device->Format == AL_FORMAT_QUAD16) printf("CA: set AL's device->format to AL_FORMAT_QUAD16\n");
+	if (device->Format == AL_FORMAT_51CHN16) printf("CA: set AL's device->format to AL_FORMAT_51CHN16\n");
+	if (device->Format == AL_FORMAT_61CHN16) printf("CA: set AL's device->format to AL_FORMAT_61CHN16\n");
+	if (device->Format == AL_FORMAT_71CHN16) printf("CA: set AL's device->format to AL_FORMAT_71CHN16\n");
+	if (device->Format == AL_FORMAT_STEREO_FLOAT32) printf("CA: set AL's device->format to AL_FORMAT_STEREO_FLOAT32\n");
+	if (device->Format == AL_FORMAT_QUAD32) printf("CA: set AL's device->format to AL_FORMAT_QUAD32\n");
+	if (device->Format == AL_FORMAT_51CHN32) printf("CA: set AL's device->format to AL_FORMAT_51CHN32\n");
+	if (device->Format == AL_FORMAT_61CHN32) printf("CA: set AL's device->format to AL_FORMAT_61CHN32\n");
+	if (device->Format == AL_FORMAT_71CHN32) printf("CA: set AL's device->format to AL_FORMAT_71CHN32\n");
+#endif
 
 	// set AL device's sample rate
 	device->Frequency = (ALCuint)streamFormat.mSampleRate;
