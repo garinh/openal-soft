@@ -34,6 +34,8 @@
 #include <unistd.h>
 #include <AudioUnit/AudioUnit.h>
 
+#define CA_VERBOSE 1 // toggle verbose tty output among CoreAudio code
+
 static void *ca_handle;
 AudioUnit gOutputUnit;
 
@@ -42,6 +44,9 @@ static volatile ALuint load_count = 0;
 
 void *ca_load(void)
 {
+#if CA_VERBOSE
+	printf("CA: ca_load\n");
+#endif
     if(load_count == 0)
     {
         ca_handle = (void*)0xDEADBEEF;
@@ -53,6 +58,9 @@ void *ca_load(void)
 
 void ca_unload(void)
 {
+#if CA_VERBOSE
+	printf("CA: ca_unload\n");
+#endif
     if(load_count == 0 || --load_count > 0)
         return;
 
@@ -62,24 +70,29 @@ void ca_unload(void)
 static int ca_callback(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp,
                        UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData)
 {
-  static UInt32 channelCount = 0; // ***** GH
-  static UInt32 firstDataByteSize = 0;
+    static UInt32 channelCount = 0;
+    static UInt32 firstDataByteSize = 0;
 
     UInt32 channel;
     ALCdevice *device = (ALCdevice*)inRefCon;
     
     // ***** GH
     if (channelCount == 0)
-      {
-	channelCount = ioData->mNumberBuffers;
-	firstDataByteSize = ioData->mBuffers[0].mDataByteSize;
-	printf("***** GH ***** ca_callback channels = %d, dbs = %d\n", channelCount, firstDataByteSize);
-      }
+    {
+	    channelCount = ioData->mNumberBuffers;
+	    firstDataByteSize = ioData->mBuffers[0].mDataByteSize;
+#if CA_VERBOSE
+	    printf("CA: ca_callback -- channelCount = %d, firstDataByteSize = %d\n", channelCount, firstDataByteSize);
+#endif
+    }
 
-    /*for (channel = 0; channel < ioData->mNumberBuffers; channel++)
+    /* 
+	// clear mix data first...
+	for (channel = 0; channel < ioData->mNumberBuffers; channel++)
     {
       memset(ioData->mBuffers[channel].mData, 0, ioData->mBuffers[channel].mDataByteSize);
-    }*/
+    }
+	*/
     
     aluMixData(device, ioData->mBuffers[0].mData, ioData->mBuffers[0].mDataByteSize / 4);
     return noErr;
@@ -95,7 +108,9 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
     Float64 outSampleRate;
     UInt32 size;
 
-    printf("***** GH ***** Initializing CoreAudio -- ca_open_playback.\n");
+#if CA_VERBOSE
+	printf("CA: ca_open_playback\n");
+#endif
 
     if(!deviceName)
         deviceName = ca_device;
@@ -123,6 +138,26 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
     if (comp == NULL) {
         return ALC_FALSE;
     }
+	
+	// retrieve default output unit's properties (input side)
+	size = sizeof(AudioStreamBasicDescription);
+	err = AudioUnitGetProperty (gOutputUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &streamFormat, &size);
+	if (err) {
+#if CA_VERBOSE
+      printf("CA: failed AudioUnitGetProperty\n");
+#endif
+      return ALC_FALSE;
+    }
+	
+#if CA_VERBOSE
+    printf("CA: Input streamFormat of default output unit -\n");
+	printf("CA:   streamFormat.mFramesPerPacket = %d\n", streamFormat.mFramesPerPacket);
+	printf("CA:   streamFormat.mChannelsPerFrame = %d\n", streamFormat.mChannelsPerFrame);
+	printf("CA:   streamFormat.mBitsPerChannel = %d\n", streamFormat.mBitsPerChannel);
+	printf("CA:   streamFormat.mBytesPerPacket = %d\n", streamFormat.mBytesPerPacket);
+	printf("CA:   streamFormat.mBytesPerFrame = %d\n", streamFormat.mBytesPerFrame);
+	printf("CA:   streamFormat.mSampleRate = %5.0f\n", streamFormat.mSampleRate);
+#endif	
 
     // setup callback
     input.inputProc = ca_callback;
@@ -133,12 +168,58 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
       return ALC_FALSE;
     }
 	
-	printf("***** GH ***** device->Format = %d\n", device->Format);
+	// set AL device's format	
+	switch (streamFormat.mChannelsPerFrame)
+	{
+		case 1:
+			if (streamFormat.mBitsPerChannel == 8) device->Format = AL_FORMAT_MONO8;
+			if (streamFormat.mBitsPerChannel == 16) device->Format = AL_FORMAT_MONO16;
+		    break;
+		case 2:
+			if (streamFormat.mBitsPerChannel == 8 * 2) device->Format = AL_FORMAT_STEREO8;
+			if (streamFormat.mBitsPerChannel == 16 * 2) device->Format = AL_FORMAT_STEREO16;
+			if (streamFormat.mBitsPerChannel == 32 * 2) device->Format = AL_FORMAT_STEREO_FLOAT32;
+		    break;
+		case 4:
+			if (streamFormat.mBitsPerChannel == 8 * 4) device->Format = AL_FORMAT_QUAD8;
+			if (streamFormat.mBitsPerChannel == 16 * 4) device->Format = AL_FORMAT_QUAD16;
+			if (streamFormat.mBitsPerChannel == 32 * 4) device->Format = AL_FORMAT_QUAD32;
+		    break;
+		case 6:
+		    if (streamFormat.mBitsPerChannel == 8 * 6) device->Format = AL_FORMAT_51CHN8;
+			if (streamFormat.mBitsPerChannel == 16 * 6) device->Format = AL_FORMAT_51CHN16;
+			if (streamFormat.mBitsPerChannel == 32 * 6) device->Format = AL_FORMAT_51CHN32;
+		    break;
+		case 7:
+		    if (streamFormat.mBitsPerChannel == 8 * 7) device->Format = AL_FORMAT_61CHN8;
+			if (streamFormat.mBitsPerChannel == 16 * 7) device->Format = AL_FORMAT_61CHN16;
+			if (streamFormat.mBitsPerChannel == 32 * 7) device->Format = AL_FORMAT_61CHN32;
+		    break;
+		case 8:
+			if (streamFormat.mBitsPerChannel == 8 * 8) device->Format = AL_FORMAT_71CHN8;
+			if (streamFormat.mBitsPerChannel == 16 * 8) device->Format = AL_FORMAT_71CHN16;
+			if (streamFormat.mBitsPerChannel == 32 * 8) device->Format = AL_FORMAT_71CHN32;
+		    break;
+		default:
+			return ALC_FALSE;
+			break;
+	}
+
+	// set AL device's sample rate
+	device->Frequency = (ALCuint)streamFormat.mSampleRate;
 	
+	// set AL device's channel order
+	SetDefaultChannelOrder(device);
+	
+	// use channel count and sample rate from the default output unit's current parameters, but reset everything else
 	streamFormat.mFramesPerPacket = 1;
-	streamFormat.mChannelsPerFrame = aluChannelsFromFormat(device->Format);
 	switch(aluBytesFromFormat(device->Format))
     {
+		case 1:
+			streamFormat.mBitsPerChannel = 8;
+			streamFormat.mBytesPerPacket = streamFormat.mChannelsPerFrame;
+			streamFormat.mBytesPerFrame = streamFormat.mChannelsPerFrame;
+            break;
         case 2:
             streamFormat.mBitsPerChannel = 16;
 			streamFormat.mBytesPerPacket = 2 * streamFormat.mChannelsPerFrame;
@@ -153,26 +234,17 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
             AL_PRINT("Unknown format: 0x%x\n", device->Format);
             return ALC_FALSE;
     }
-    streamFormat.mSampleRate = (float)device->Frequency;
     streamFormat.mFormatID = kAudioFormatLinearPCM;
     streamFormat.mFormatFlags = kLinearPCMFormatFlagIsSignedInteger |
                                 kAudioFormatFlagsNativeEndian |
-                                kLinearPCMFormatFlagIsPacked;
-								
-	SetDefaultChannelOrder(device);
-
+                                kLinearPCMFormatFlagIsPacked;								
     err = AudioUnitSetProperty(gOutputUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &streamFormat, sizeof(AudioStreamBasicDescription));
     if (err) {
         return ALC_FALSE;
     }
 
-    err = AudioUnitInitialize(gOutputUnit);
-    if (err) {
-        return ALC_FALSE;
-    }
-
-    size = sizeof(Float64);
-    err = AudioUnitGetProperty(gOutputUnit, kAudioUnitProperty_SampleRate, kAudioUnitScope_Output, 0, &outSampleRate, &size);
+	// int and start the default audio unit...
+	err = AudioUnitInitialize(gOutputUnit);
     if (err) {
         return ALC_FALSE;
     }
@@ -184,18 +256,25 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
 
     CFRunLoopRunInMode(kCFRunLoopDefaultMode, 2, false);
 
-    printf("***** GH ***** ca_open_playback complete\n");
+#if CA_VERBOSE
+	printf("CA: ca_open_playback -- exit\n");
+#endif
     return ALC_TRUE;
 }
 
 static void ca_close_playback(ALCdevice *device)
 {
-    printf("***** GH ***** Killing CoreAudio -- ca_close_playback.\n");
+#if CA_VERBOSE
+	printf("CA: ca_close_playback\n");
+#endif
     CloseComponent(gOutputUnit);
 }
 
 static ALCboolean ca_reset_playback(ALCdevice *device)
 {
+#if CA_VERBOSE
+	printf("CA: ca_reset_playback\n");
+#endif
     return ALC_TRUE;
 }
 
@@ -203,17 +282,26 @@ static void ca_stop_playback(ALCdevice *device)
 {
     OSStatus err = noErr;
 
+#if CA_VERBOSE
+	printf("CA: ca_stop_playback\n");
+#endif
+
     AudioOutputUnitStop(gOutputUnit);
     err = AudioUnitUninitialize(gOutputUnit);
+#if CA_VERBOSE
     if (err) {
-        printf("***** GH ***** AudioUnitUninitialize failed.\n");
+        printf("CA: ca_stop_playback -- AudioUnitUninitialize failed.\n");
     } else {
-	printf("***** GH ***** AudioUnitUninitialize succeeded.\n");
+	printf("CA: ca_stop_playback -- AudioUnitUninitialize succeeded.\n");
     }
+#endif
 }
 
 static ALCboolean ca_open_capture(ALCdevice *device, const ALCchar *deviceName)
 {
+#if CA_VERBOSE
+	printf("CA: ca_open_capture\n");
+#endif
     return ALC_FALSE;
     (void)device;
     (void)deviceName;
@@ -234,16 +322,24 @@ static const BackendFuncs ca_funcs = {
 
 void alc_ca_init(BackendFuncs *func_list)
 {
-  printf("***** GH ***** Initializing coreaudio backend with alc_ca_init!\n");
+#if CA_VERBOSE
+	printf("CA: alc_ca_init\n");
+#endif
     *func_list = ca_funcs;
 }
 
 void alc_ca_deinit(void)
 {
+#if CA_VERBOSE
+	printf("CA: alc_ca_deinit\n");
+#endif
 }
 
 void alc_ca_probe(int type)
 {
+#if CA_VERBOSE
+	printf("CA: alc_ca_probe\n");
+#endif
     if(!ca_load()) return;
 
     if(type == DEVICE_PROBE)
