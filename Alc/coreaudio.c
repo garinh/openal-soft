@@ -37,7 +37,7 @@
 #define CA_VERBOSE 1 // toggle verbose tty output among CoreAudio code
 
 static void *ca_handle;
-AudioUnit gOutputUnit;
+static AudioUnit gOutputUnit;
 
 static const ALCchar ca_device[] = "CoreAudio Software";
 static volatile ALuint load_count = 0;
@@ -86,15 +86,15 @@ static int ca_callback(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags
 #endif
     }
 
-    /* 
-	// clear mix data first...
+	// clear mix data...
+	/*
 	for (channel = 0; channel < ioData->mNumberBuffers; channel++)
     {
       memset(ioData->mBuffers[channel].mData, 0, ioData->mBuffers[channel].mDataByteSize);
     }
 	*/
     
-    aluMixData(device, ioData->mBuffers[0].mData, ioData->mBuffers[0].mDataByteSize / 4);
+    aluMixData(device, ioData->mBuffers[0].mData, ioData->mBuffers[0].mDataByteSize / (2 * 6)); // ***** GH -- FIXME! -- 2 bytes * numChannels 
     return noErr;
 }
 
@@ -159,21 +159,15 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
 	printf("CA:   streamFormat.mSampleRate = %5.0f\n", streamFormat.mSampleRate);
 #endif
 
+	// check size
+	assert(size == sizeof(AudioStreamBasicDescription));
+
     // set default output unit's input side to match output side
 	err = AudioUnitSetProperty (gOutputUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &streamFormat, size);
 	if (err) {
 #if CA_VERBOSE
       printf("CA: failed AudioUnitSetProperty\n");
 #endif
-      return ALC_FALSE;
-    }
-
-    // setup callback
-    input.inputProc = ca_callback;
-    input.inputProcRefCon = device;
-
-    err = AudioUnitSetProperty (gOutputUnit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &input, sizeof(input));
-    if (err) {
       return ALC_FALSE;
     }
 	
@@ -222,6 +216,9 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
 	// set AL device's sample rate
 	device->Frequency = (ALCuint)streamFormat.mSampleRate;
 	
+	// set AL device's headdampen
+	device->HeadDampen = 0.0f;
+	
 	// set AL device's channel order
 	SetDefaultChannelOrder(device);
 	
@@ -256,7 +253,38 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
     if (err) {
         return ALC_FALSE;
     }
+	
+	// setup callback
+    input.inputProc = ca_callback;
+    input.inputProcRefCon = device;
 
+    err = AudioUnitSetProperty (gOutputUnit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &input, sizeof(AURenderCallbackStruct));
+    if (err) {
+      return ALC_FALSE;
+    }
+
+#if CA_VERBOSE
+	printf("CA: ca_open_playback -- exit\n");
+#endif
+    return ALC_TRUE;
+}
+
+static void ca_close_playback(ALCdevice *device)
+{
+#if CA_VERBOSE
+	printf("CA: ca_close_playback\n");
+#endif
+	
+    CloseComponent(gOutputUnit);
+}
+
+static ALCboolean ca_reset_playback(ALCdevice *device)
+{
+	OSStatus err = noErr;
+	
+#if CA_VERBOSE
+	printf("CA: ca_reset_playback\n");
+#endif
 	// int and start the default audio unit...
 	err = AudioUnitInitialize(gOutputUnit);
     if (err) {
@@ -270,25 +298,6 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
 
     CFRunLoopRunInMode(kCFRunLoopDefaultMode, 2, false);
 
-#if CA_VERBOSE
-	printf("CA: ca_open_playback -- exit\n");
-#endif
-    return ALC_TRUE;
-}
-
-static void ca_close_playback(ALCdevice *device)
-{
-#if CA_VERBOSE
-	printf("CA: ca_close_playback\n");
-#endif
-    CloseComponent(gOutputUnit);
-}
-
-static ALCboolean ca_reset_playback(ALCdevice *device)
-{
-#if CA_VERBOSE
-	printf("CA: ca_reset_playback\n");
-#endif
     return ALC_TRUE;
 }
 
@@ -300,13 +309,13 @@ static void ca_stop_playback(ALCdevice *device)
 	printf("CA: ca_stop_playback\n");
 #endif
 
-    AudioOutputUnitStop(gOutputUnit);
+	AudioOutputUnitStop(gOutputUnit);
     err = AudioUnitUninitialize(gOutputUnit);
 #if CA_VERBOSE
     if (err) {
-        printf("CA: ca_stop_playback -- AudioUnitUninitialize failed.\n");
+        printf("CA: ca_close_playback -- AudioUnitUninitialize failed.\n");
     } else {
-	printf("CA: ca_stop_playback -- AudioUnitUninitialize succeeded.\n");
+	printf("CA: ca_close_playback -- AudioUnitUninitialize succeeded.\n");
     }
 #endif
 }
