@@ -54,10 +54,6 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
     OSStatus err = noErr;
     ComponentDescription desc;
     Component comp;
-    AURenderCallbackStruct input;
-    AudioStreamBasicDescription streamFormat;
-    Float64 outSampleRate;
-    UInt32 size;
 
 #if CA_VERBOSE
 	printf("CA: ca_open_playback\n");
@@ -85,9 +81,42 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
     err = OpenAComponent(comp, &gOutputUnit);
     if (comp == NULL) {
         return ALC_FALSE;
+	}
+	
+	return ALC_TRUE;
+}
+
+static void ca_close_playback(ALCdevice *device)
+{
+#if CA_VERBOSE
+	printf("CA: ca_close_playback\n");
+#endif
+	
+    CloseComponent(gOutputUnit);
+}
+
+static ALCboolean ca_reset_playback(ALCdevice *device)
+{
+	AURenderCallbackStruct input;
+    AudioStreamBasicDescription streamFormat;
+    UInt32 size;
+	OSStatus err = noErr;
+	
+#if CA_VERBOSE
+	printf("CA: ca_reset_playback\n");
+#endif
+	// int and start the default audio unit...
+	err = AudioUnitInitialize(gOutputUnit);
+    if (err) {
+        return ALC_FALSE;
+    }
+
+    err = AudioOutputUnitStart(gOutputUnit);
+    if (err) {
+        return ALC_FALSE;
     }
 	
-	// retrieve default output unit's properties (output side)
+		// retrieve default output unit's properties (output side)
 	size = sizeof(AudioStreamBasicDescription);
 	err = AudioUnitGetProperty (gOutputUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &streamFormat, &size);
 	if (err) {
@@ -198,36 +227,6 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
     return ALC_TRUE;
 }
 
-static void ca_close_playback(ALCdevice *device)
-{
-#if CA_VERBOSE
-	printf("CA: ca_close_playback\n");
-#endif
-	
-    CloseComponent(gOutputUnit);
-}
-
-static ALCboolean ca_reset_playback(ALCdevice *device)
-{
-	OSStatus err = noErr;
-	
-#if CA_VERBOSE
-	printf("CA: ca_reset_playback\n");
-#endif
-	// int and start the default audio unit...
-	err = AudioUnitInitialize(gOutputUnit);
-    if (err) {
-        return ALC_FALSE;
-    }
-
-    err = AudioOutputUnitStart(gOutputUnit);
-    if (err) {
-        return ALC_FALSE;
-    }
-
-    return ALC_TRUE;
-}
-
 static void ca_stop_playback(ALCdevice *device)
 {
     OSStatus err = noErr;
@@ -240,9 +239,9 @@ static void ca_stop_playback(ALCdevice *device)
     err = AudioUnitUninitialize(gOutputUnit);
 #if CA_VERBOSE
     if (err) {
-        printf("CA: ca_close_playback -- AudioUnitUninitialize failed.\n");
+        printf("CA: ca_stop_playback -- AudioUnitUninitialize failed.\n");
     } else {
-	printf("CA: ca_close_playback -- AudioUnitUninitialize succeeded.\n");
+	printf("CA: ca_stop_playback -- AudioUnitUninitialize succeeded.\n");
     }
 #endif
 }
