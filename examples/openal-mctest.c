@@ -304,7 +304,7 @@ int main()
 	exit(0);
     }
 
-    stat("infile.raw", &statInfo);
+    stat("quad_test.raw", &statInfo);
     readMem = (int)(statInfo.st_size / 2688) * 2688; // make sure all our formats are happy with the length...
 
     printf("Input file is %d bytes long.\n", readMem);
