@@ -36,36 +36,9 @@
 
 #define CA_VERBOSE 0 // toggle verbose tty output among CoreAudio code
 
-static void *ca_handle;
 static AudioUnit gOutputUnit;
 
 static const ALCchar ca_device[] = "CoreAudio Software";
-static volatile ALuint load_count = 0;
-
-void *ca_load(void)
-{
-#if CA_VERBOSE
-	printf("CA: ca_load\n");
-#endif
-    if(load_count == 0)
-    {
-        ca_handle = (void*)0xDEADBEEF;
-    }
-    ++load_count;
-
-    return ca_handle;
-}
-
-void ca_unload(void)
-{
-#if CA_VERBOSE
-	printf("CA: ca_unload\n");
-#endif
-    if(load_count == 0 || --load_count > 0)
-        return;
-
-    ca_handle = NULL;
-}
 
 static int ca_callback(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp,
                        UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData)
@@ -93,9 +66,6 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
     if(!deviceName)
         deviceName = ca_device;
     else if(strcmp(deviceName, ca_device) != 0)
-        return ALC_FALSE;
-
-    if(!ca_load())
         return ALC_FALSE;
 
     err = noErr;
@@ -320,8 +290,6 @@ void alc_ca_probe(int type)
 #if CA_VERBOSE
 	printf("CA: alc_ca_probe\n");
 #endif
-    if(!ca_load()) return;
-
     if(type == DEVICE_PROBE)
         AppendDeviceList(ca_device);
     else if(type == ALL_DEVICE_PROBE)
