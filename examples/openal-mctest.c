@@ -315,7 +315,7 @@ int main()
     }
 
     printf("Reading file into membuffer...\n");
-    file = fopen("infile.raw", "r");
+    file = fopen("quad_test.raw", "r");
     if (file == NULL) {
       printf("fopen failed!\n");
       exit(-1);
@@ -329,7 +329,7 @@ int main()
     alGenSources(1, &source);
     checkForErrors();
 
-    alBufferData(buffer, AL_FORMAT_MONO16, memBuffer, readMem, 11025);
+    alBufferData(buffer, AL_FORMAT_QUAD16, memBuffer, readMem, 48000);
     checkForErrors();
 
     alSourcei(source, AL_BUFFER, buffer);

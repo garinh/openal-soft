@@ -34,7 +34,7 @@
 #include <unistd.h>
 #include <AudioUnit/AudioUnit.h>
 
-#define CA_VERBOSE 1 // toggle verbose tty output among CoreAudio code
+#define CA_VERBOSE 0 // toggle verbose tty output among CoreAudio code
 
 static void *ca_handle;
 static AudioUnit gOutputUnit;
@@ -70,31 +70,9 @@ void ca_unload(void)
 static int ca_callback(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp,
                        UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData)
 {
-    static UInt32 channelCount = 0;
-    static UInt32 firstDataByteSize = 0;
-
-    UInt32 channel;
     ALCdevice *device = (ALCdevice*)inRefCon;
     
-    // ***** GH
-    if (channelCount == 0)
-    {
-	    channelCount = ioData->mNumberBuffers;
-	    firstDataByteSize = ioData->mBuffers[0].mDataByteSize;
-#if CA_VERBOSE
-	    printf("CA: ca_callback -- channelCount = %d, firstDataByteSize = %d\n", channelCount, firstDataByteSize);
-#endif
-    }
-
-	// clear mix data...
-	/*
-	for (channel = 0; channel < ioData->mNumberBuffers; channel++)
-    {
-      memset(ioData->mBuffers[channel].mData, 0, ioData->mBuffers[channel].mDataByteSize);
-    }
-	*/
-    
-    aluMixData(device, ioData->mBuffers[0].mData, ioData->mBuffers[0].mDataByteSize / (2 * 6)); // ***** GH -- FIXME! -- 2 bytes * numChannels 
+    aluMixData(device, ioData->mBuffers[0].mData, ioData->mBuffers[0].mDataByteSize / (2 * aluChannelsFromFormat(device->Format)));
     return noErr;
 }
 
@@ -193,25 +171,6 @@ static ALCboolean ca_open_playback(ALCdevice *device, const ALCchar *deviceName)
 			device->Format = AL_FORMAT_71CHN16;
 		    break;
 	}
-#if CA_VERBOSE
-    if (device->Format == AL_FORMAT_MONO8) printf("CA: set AL's device->format to AL_FORMAT_MONO8\n");
-	if (device->Format == AL_FORMAT_STEREO8) printf("CA: set AL's device->format to AL_FORMAT_STEREO8\n");
-	if (device->Format == AL_FORMAT_QUAD8) printf("CA: set AL's device->format to AL_FORMAT_QUAD8\n");
-	if (device->Format == AL_FORMAT_51CHN8) printf("CA: set AL's device->format to AL_FORMAT_51CHN8\n");
-	if (device->Format == AL_FORMAT_61CHN8) printf("CA: set AL's device->format to AL_FORMAT_61CHN8\n");
-	if (device->Format == AL_FORMAT_71CHN8) printf("CA: set AL's device->format to AL_FORMAT_71CHN8\n");
-	if (device->Format == AL_FORMAT_MONO16) printf("CA: set AL's device->format to AL_FORMAT_MONO16\n");
-	if (device->Format == AL_FORMAT_STEREO16) printf("CA: set AL's device->format to AL_FORMAT_STEREO16\n");
-	if (device->Format == AL_FORMAT_QUAD16) printf("CA: set AL's device->format to AL_FORMAT_QUAD16\n");
-	if (device->Format == AL_FORMAT_51CHN16) printf("CA: set AL's device->format to AL_FORMAT_51CHN16\n");
-	if (device->Format == AL_FORMAT_61CHN16) printf("CA: set AL's device->format to AL_FORMAT_61CHN16\n");
-	if (device->Format == AL_FORMAT_71CHN16) printf("CA: set AL's device->format to AL_FORMAT_71CHN16\n");
-	if (device->Format == AL_FORMAT_STEREO_FLOAT32) printf("CA: set AL's device->format to AL_FORMAT_STEREO_FLOAT32\n");
-	if (device->Format == AL_FORMAT_QUAD32) printf("CA: set AL's device->format to AL_FORMAT_QUAD32\n");
-	if (device->Format == AL_FORMAT_51CHN32) printf("CA: set AL's device->format to AL_FORMAT_51CHN32\n");
-	if (device->Format == AL_FORMAT_61CHN32) printf("CA: set AL's device->format to AL_FORMAT_61CHN32\n");
-	if (device->Format == AL_FORMAT_71CHN32) printf("CA: set AL's device->format to AL_FORMAT_71CHN32\n");
-#endif
 
 	// set AL device's sample rate
 	device->Frequency = (ALCuint)streamFormat.mSampleRate;
@@ -295,8 +254,6 @@ static ALCboolean ca_reset_playback(ALCdevice *device)
     if (err) {
         return ALC_FALSE;
     }
-
-    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 2, false);
 
     return ALC_TRUE;
 }
