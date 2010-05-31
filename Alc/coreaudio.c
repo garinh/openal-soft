@@ -34,7 +34,7 @@
 #include <unistd.h>
 #include <AudioUnit/AudioUnit.h>
 
-#define CA_VERBOSE 0 // toggle verbose tty output among CoreAudio code
+#define CA_VERBOSE 1 // toggle verbose tty output among CoreAudio code
 
 static AudioUnit gOutputUnit;
 
