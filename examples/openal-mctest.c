@@ -253,20 +253,62 @@ static void printEFXInfo(void)
     printList("Supported effects", ',', effectNames);
 }
 
+void LoadBuffer(char *fileName, ALuint bufferID, ALuint format, ALuint sampleRate)
+{
+    struct stat statInfo;
+    int readMem;
+    char *memBuffer;
+    FILE *file;
+
+    stat(fileName, &statInfo);
+    readMem = (int)(statInfo.st_size / 2688) * 2688; // make sure all our formats are happy with the length...
+
+    printf("Input file is %d bytes long.\n", readMem);
+    memBuffer = malloc(readMem);
+    if (memBuffer == 0) {
+      printf("malloc failed!\n");
+      exit(-1);
+    }
+
+    printf("Reading file into membuffer...\n");
+    file = fopen(fileName, "r");
+    if (file == NULL) {
+      printf("fopen failed!\n");
+      exit(-1);
+    }
+    fread(memBuffer, readMem, 1, file);
+    fclose(file);
+
+    alBufferData(bufferID, format, memBuffer, readMem, sampleRate);
+    checkForErrors();
+    free(memBuffer);
+}
+
+void PlaySourceUntilDone(ALuint sourceID)
+{
+    ALuint state;
+
+    alSourcePlay(sourceID);
+
+    printf("Waiting");
+    state = AL_PLAYING;
+    while (state != AL_STOPPED) {
+      alGetSourcei(sourceID, AL_SOURCE_STATE, &state);
+      sleep(1);
+      printf(".");
+    }
+    printf("\n");
+}
+
 int main()
 {
     ALCdevice *device;
     ALCcontext *context;
-    struct stat statInfo;
-    ALuint buffer;
-    ALuint source;
-    ALuint state;
-    FILE *file;
-    char *memBuffer;
-    int readMem;
+    ALuint buffer[5];
+    ALuint source[5];
 
     if(alcIsExtensionPresent(NULL, (const ALCchar*)"ALC_ENUMERATION_EXT") == AL_TRUE)
-    {
+      {
         if(alcIsExtensionPresent(NULL, (const ALCchar*)"ALC_ENUMERATE_ALL_EXT") == AL_TRUE)
             printDevices(ALC_ALL_DEVICES_SPECIFIER, "playback");
         else
@@ -304,51 +346,37 @@ int main()
 	exit(0);
     }
 
-    stat("quad_test.raw", &statInfo);
-    readMem = (int)(statInfo.st_size / 2688) * 2688; // make sure all our formats are happy with the length...
-
-    printf("Input file is %d bytes long.\n", readMem);
-    memBuffer = malloc(readMem);
-    if (memBuffer == 0) {
-      printf("malloc failed!\n");
-      exit(-1);
-    }
-
-    printf("Reading file into membuffer...\n");
-    file = fopen("quad_test.raw", "r");
-    if (file == NULL) {
-      printf("fopen failed!\n");
-      exit(-1);
-    }
-    fread(memBuffer, readMem, 1, file);
-    fclose(file);
-
-    printf("Generating buffer and source...\n");
-    alGenBuffers(1, &buffer);
+    printf("Generating five buffers and five sources...\n");
+    alGenBuffers(5, &buffer[0]);
     checkForErrors();
-    alGenSources(1, &source);
+    alGenSources(5, &source[0]);
     checkForErrors();
 
-    alBufferData(buffer, AL_FORMAT_QUAD16, memBuffer, readMem, 48000);
-    checkForErrors();
+    LoadBuffer("stereo_section_16_44.raw",buffer[0], AL_FORMAT_STEREO16, 22050);
+    LoadBuffer("quad_section_16_44.raw",buffer[1], AL_FORMAT_STEREO16, 22050);
+    LoadBuffer("quad_raw_16_44.raw",buffer[2], AL_FORMAT_QUAD16, 44100);
+    LoadBuffer("5dot1_16_11.raw",buffer[3], AL_FORMAT_STEREO16, 11025);
+    LoadBuffer("51_raw_16_44.raw",buffer[4], AL_FORMAT_51CHN16, 44100);
 
-    alSourcei(source, AL_BUFFER, buffer);
+    alSourcei(source[0], AL_BUFFER, buffer[0]);
+    alSourcei(source[1], AL_BUFFER, buffer[1]);
+    alSourcei(source[2], AL_BUFFER, buffer[2]);
+    alSourcei(source[3], AL_BUFFER, buffer[3]);
+    alSourcei(source[4], AL_BUFFER, buffer[4]);
     checkForErrors();
 
     printf("Starting playback...\n");
-    alSourcePlay(source);
-
-    printf("Waiting");
-    state = AL_PLAYING;
-    while (state != AL_STOPPED) {
-      alGetSourcei(source, AL_SOURCE_STATE, &state);
-      sleep(1);
-      printf(".");
-    }
-    printf("\n");
+    PlaySourceUntilDone(source[0]);
+    sleep(1);
+    PlaySourceUntilDone(source[1]);
+    sleep(1);
+    PlaySourceUntilDone(source[2]);
+    sleep(1);
+    PlaySourceUntilDone(source[3]);
+    sleep(1);
+    PlaySourceUntilDone(source[4]);
     
     printf("Killing everything...\n");
-    free(memBuffer);
 
     alcMakeContextCurrent(NULL);
     alcDestroyContext(context);

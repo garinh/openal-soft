@@ -178,7 +178,25 @@ static ALCboolean ca_reset_playback(ALCdevice *device)
 	device->HeadDampen = 0.0f;
 	
 	// set AL device's channel order
-	SetDefaultChannelOrder(device);
+	SetDefaultChannelOrder(device); // use OpenAL-Soft default
+	switch(aluChannelsFromFormat(device->Format)) // for 5.1, switch to SMTE standard; for 7.1, switch to WFE
+    {
+		case 6: device->DevChannels[0] = FRONT_LEFT;
+				device->DevChannels[1] = FRONT_RIGHT;
+				device->DevChannels[2] = FRONT_CENTER;
+				device->DevChannels[3] = LFE;
+				device->DevChannels[4] = BACK_LEFT;
+				device->DevChannels[5] = BACK_RIGHT; break;
+				
+		case 8: device->DevChannels[0] = FRONT_LEFT;
+				device->DevChannels[1] = FRONT_RIGHT;
+				device->DevChannels[2] = FRONT_CENTER;
+				device->DevChannels[3] = LFE;
+				device->DevChannels[4] = BACK_LEFT;
+				device->DevChannels[5] = BACK_RIGHT;
+				device->DevChannels[6] = SIDE_LEFT;
+				device->DevChannels[7] = SIDE_RIGHT; break;
+    }
 	
 	// use channel count and sample rate from the default output unit's current parameters, but reset everything else
 	streamFormat.mFramesPerPacket = 1;
